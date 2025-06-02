@@ -3,6 +3,7 @@ package configurations
 type Configuration struct {
 	ApiConfiguration      ApiConfiguration
 	DatabaseConfiguration DatabaseConfiguration
+	KafkaConfiguration    KafkaConfiguration
 }
 
 type ApiConfiguration struct {
@@ -15,4 +16,13 @@ type DatabaseConfiguration struct {
 	UserName string `envconfig:"DATABASE_USERNAME"`
 	Password string `envconfig:"DATABASE_PASSWORD"`
 	Name     string `envconfig:"DATABASE_NAME"`
+}
+
+type KafkaConfiguration struct {
+	Broker                  string `envconfig:"KAFKA_BROKER"`
+	KafkaTopicConfiguration KafkaTopicConfiguration
+}
+
+type KafkaTopicConfiguration struct {
+	ProductCreated string `envconfig:"KAFKA_TOPIC_PRODUCT_CREATED"`
 }

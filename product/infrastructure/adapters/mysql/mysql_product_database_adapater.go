@@ -1,4 +1,4 @@
-package adapters
+package mysql
 
 import (
 	"go_event_driven/product/domain/entities"

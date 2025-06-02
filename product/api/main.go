@@ -28,9 +28,10 @@ func main() {
 	engine.Use(middlewares.HandleErrorMiddleware())
 	engine.SetTrustedProxies(nil)
 
-	mysqlDatabaseAdapter := adapters.NewMySqlDatabaseAdapter(&configuration.DatabaseConfiguration)
-	productWriterDatabaseAdapter := adapters.NewMySqlProductDatabaseAdapter(mysqlDatabaseAdapter)
-	productApplicationService := services.NewProductService(productWriterDatabaseAdapter)
+	mysqlDatabaseAdapter := adapters.SetupMySqlAdapter(&configuration.DatabaseConfiguration)
+	kafkaEventBusAdapter := adapters.SetupKafkaAdapter(&configuration.KafkaConfiguration)
+	productDatabaseAdapter := adapters.SetupProductMysqlAdapter(mysqlDatabaseAdapter)
+	productApplicationService := services.NewProductService(productDatabaseAdapter, kafkaEventBusAdapter)
 	productController := controllers.NewProductController(productApplicationService)
 	controllers := controllers.Controllers{
 		ProductController: *productController,
@@ -38,5 +39,6 @@ func main() {
 
 	routes.ConfigureRoutes(engine, &controllers)
 
-	engine.Run(fmt.Sprintf(":%s", configuration.ApiConfiguration.Port))
+	address := fmt.Sprintf(":%s", configuration.ApiConfiguration.Port)
+	engine.Run(address)
 }
