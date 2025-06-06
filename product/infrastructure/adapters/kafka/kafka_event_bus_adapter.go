@@ -23,13 +23,10 @@ func NewKafkaEventBusAdapter(kafkaConfiguration *configurations.KafkaConfigurati
 
 	eventTopic["product.created"] = kafkaConfiguration.KafkaTopicConfiguration.ProductCreated
 
-	fmt.Println(kafkaConfiguration.Broker)
-	fmt.Println(_producer == nil)
-	fmt.Println(eventTopic)
-
 	return &KafkaEventBusAdapter{
-		broker:   kafkaConfiguration.Broker,
-		producer: _producer,
+		broker:     kafkaConfiguration.Broker,
+		producer:   _producer,
+		eventTopic: eventTopic,
 	}, nil
 }
 
@@ -49,11 +46,9 @@ func initProducer(broker string) (sarama.SyncProducer, error) {
 }
 
 func (adapter *KafkaEventBusAdapter) Publish(eventType string, message []byte) error {
-	println(adapter.producer == nil)
-
 	topic := adapter.eventTopic[eventType]
 
-	fmt.Println(topic)
+	fmt.Println(fmt.Sprintf("Got topic %s", topic))
 
 	_message := &sarama.ProducerMessage{
 		Topic: topic,

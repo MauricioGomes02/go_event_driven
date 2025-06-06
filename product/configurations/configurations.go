@@ -1,5 +1,12 @@
 package configurations
 
+import (
+	"fmt"
+
+	"github.com/joho/godotenv"
+	"github.com/kelseyhightower/envconfig"
+)
+
 type Configuration struct {
 	ApiConfiguration      ApiConfiguration
 	DatabaseConfiguration DatabaseConfiguration
@@ -25,4 +32,17 @@ type KafkaConfiguration struct {
 
 type KafkaTopicConfiguration struct {
 	ProductCreated string `envconfig:"KAFKA_TOPIC_PRODUCT_CREATED"`
+}
+
+func LoadConfigurations(envFilePath string) (*Configuration, error) {
+	_ = godotenv.Load(envFilePath)
+
+	var configuration Configuration
+	_error := envconfig.Process("", &configuration)
+	if _error != nil {
+		fmt.Printf("An error occurred while loading settings: %s", _error.Error())
+		return nil, _error
+	}
+
+	return &configuration, nil
 }

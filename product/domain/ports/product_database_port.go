@@ -5,5 +5,7 @@ import (
 )
 
 type IProductDatabasePort interface {
-	Add(product *entities.Product) (*entities.Product, error)
+	AddWithOutboxEvent(product *entities.Product, event *entities.OutboxEvent) (*entities.Product, error)
+	GetOutboxEvents(criterion CriterionPort) ([]entities.OutboxEvent, error)
+	UpdateOutboxEvent(entity entities.OutboxEvent) error
 }

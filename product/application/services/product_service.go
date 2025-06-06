@@ -18,15 +18,11 @@ type IProductService interface {
 
 type ProductService struct {
 	databaseAdapter ports.IProductDatabasePort
-	eventBusAdapter ports.IProductEventBusPort
 }
 
-func NewProductService(
-	databaseAdapter ports.IProductDatabasePort,
-	eventBusAdapter ports.IProductEventBusPort) *ProductService {
+func NewProductService(databaseAdapter ports.IProductDatabasePort) *ProductService {
 	return &ProductService{
 		databaseAdapter: databaseAdapter,
-		eventBusAdapter: eventBusAdapter,
 	}
 }
 
@@ -38,7 +34,13 @@ func (productService *ProductService) Create(createProduct *inputModels.CreatePr
 		return nil, _error
 	}
 
-	entity := entities.NewProduct(
+	outboxEventId, _error := uuid.NewUUID()
+
+	if _error != nil {
+		return nil, _error
+	}
+
+	entity, _error := entities.NewProduct(
 		newId,
 		createProduct.Name,
 		createProduct.Description,
@@ -47,24 +49,36 @@ func (productService *ProductService) Create(createProduct *inputModels.CreatePr
 		true,
 	)
 
-	_entity, _error := productService.databaseAdapter.Add(entity)
-
-	eventId, _error := uuid.NewUUID()
-
 	if _error != nil {
-		// TODO
+		return nil, _error
 	}
 
-	eventType := "product.created"
-	timestamp := time.Now().UTC()
-	productCreatedEvent := events.NewProductCreatedEvent(eventId, eventType, timestamp, _entity)
+	productCreatedEvent := events.NewProductCreatedEvent(entity)
 	_bytes, _error := json.Marshal(productCreatedEvent)
 
 	if _error != nil {
-		// TODO
+		return nil, _error
 	}
 
-	productService.eventBusAdapter.Publish(eventType, _bytes)
+	outboxEvent := entities.NewOutboxEvent(
+		outboxEventId,
+		entity.Id,
+		"product",
+		"product.created",
+		_bytes,
+		"pending",
+		0,
+		nil,
+		utcNow,
+		nil,
+	)
+
+	_entity, _error := productService.databaseAdapter.AddWithOutboxEvent(entity, outboxEvent)
+
+	if _error != nil {
+		return nil, _error
+	}
+
 	output := outputModels.ConvertFromDomainToApplication(_entity)
 	return output, _error
 }

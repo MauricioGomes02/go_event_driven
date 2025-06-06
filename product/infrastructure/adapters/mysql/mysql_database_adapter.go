@@ -16,7 +16,7 @@ const driver = "mysql"
 
 func NewMySqlDatabaseAdapter(databaseConfiguration *configurations.DatabaseConfiguration) *MySqlDatabaseAdapter {
 	connectionString := fmt.Sprintf(
-		"%s:%s@tcp(%s:%d)/%s",
+		"%s:%s@tcp(%s:%d)/%s?parseTime=true",
 		databaseConfiguration.UserName,
 		databaseConfiguration.Password,
 		databaseConfiguration.Host,

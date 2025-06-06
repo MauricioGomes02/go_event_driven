@@ -23,3 +23,7 @@ func SetupMySqlAdapter(databaseConfiguration *configurations.DatabaseConfigurati
 func SetupProductMysqlAdapter(adapter *mysql.MySqlDatabaseAdapter) *mysql.MySqlProductDatabaseAdapter {
 	return mysql.NewMySqlProductDatabaseAdapter(adapter)
 }
+
+func SetupCriterionBuilderMysqlAdapter() *mysql.SqlCriterionBuilder {
+	return mysql.NewSqlCriterionBuilder()
+}
