@@ -4,6 +4,7 @@ import (
 	"go_event_driven/product/configurations"
 	"go_event_driven/product/infrastructure/adapters/kafka"
 	"go_event_driven/product/infrastructure/adapters/mysql"
+	"go_event_driven/product/infrastructure/adapters/zap"
 )
 
 func SetupKafkaAdapter(configuration *configurations.KafkaConfiguration) *kafka.KafkaEventBusAdapter {
@@ -26,4 +27,8 @@ func SetupProductMysqlAdapter(adapter *mysql.MySqlDatabaseAdapter) *mysql.MySqlP
 
 func SetupCriterionBuilderMysqlAdapter() *mysql.SqlCriterionBuilder {
 	return mysql.NewSqlCriterionBuilder()
+}
+
+func SetupLoggerZapAdapter() *zap.ZapLogger {
+	return zap.NewZapLogger()
 }

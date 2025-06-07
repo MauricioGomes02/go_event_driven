@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"go_event_driven/product/domain/ports"
 	"time"
 )
@@ -25,20 +24,27 @@ func NewSendProductEventService(
 	}
 }
 
-func (service *SendProductEventService) SendCreatedEvent(_context context.Context) {
-	fmt.Println("Starting SendProductEventService")
-
+func (service *SendProductEventService) SendCreatedEvent(_context context.Context, logger ports.Logger) {
 	eventType := "product.created"
+	_context = logger.With(
+		_context,
+		ports.Field{Key: "worker.service", Value: "SendProductEventService"},
+		ports.Field{Key: "event_type", Value: eventType})
+
+	logger.LogInformation(_context, "Starting service")
 	for {
 		select {
 		case <-_context.Done():
-			fmt.Println("The context has been closed")
+			logger.LogWarning(_context, "The context has been closed")
 			return
 		default:
 			defer func() {
 				_panic := recover()
 				if _panic != nil {
-					fmt.Println(_panic)
+					logger.LogError(
+						_context,
+						"An error occurred while trying to send the event",
+						ports.Field{Key: "panic.reason", Value: _panic.(string)})
 				}
 			}()
 
@@ -46,48 +52,88 @@ func (service *SendProductEventService) SendCreatedEvent(_context context.Contex
 				service.criterionBuilderAdapter.Where("OutboxEvent", "Status", "=", "error"),
 				service.criterionBuilderAdapter.Where("OutboxEvent", "Status", "=", "pending"),
 			)
+
 			_entities, _error := service.databaseAdapter.GetOutboxEvents(criterion)
 
 			if _error != nil {
-				fmt.Println(_error.Error())
+				logger.LogError(_context, _error.Error())
 				continue
 			}
 
-			fmt.Println(fmt.Sprintf("Got %d outbox_events", len(_entities)))
+			logger.LogInformation(
+				_context,
+				"Obtained entities",
+				ports.Field{Key: "entity", Value: "OutboxEvent"},
+				ports.Field{Key: "entity.quantity", Value: len(_entities)})
 
 			for _, entity := range _entities {
 				_error := service.eventBusAdapter.Publish(eventType, entity.Payload)
 
 				if _error != nil {
-					fmt.Println(_error.Error())
+					logger.LogError(
+						_context,
+						"Error trying to publish event",
+						ports.Field{Key: "error.reason", Value: _error.Error()})
 
 					entity.UpdateStatus("error")
 					entity.UpdateErrorMessage(_error.Error())
 					entity.UpdateRetries(entity.Retries + 1)
 
+					updatedFields := entity.GetUpdatedFields()
+
 					_error = service.databaseAdapter.UpdateOutboxEvent(entity)
 
 					if _error != nil {
-						fmt.Println(_error.Error())
+						logger.LogError(
+							_context,
+							"Error when trying to update entity",
+							ports.Field{Key: "entity", Value: "OutboxEvent"},
+							ports.Field{
+								Key:   "entity.updated_properties",
+								Value: updatedFields,
+							})
 					}
 
-					fmt.Println("Updated the OutboxEvent entity with error information when trying to publish an event")
+					logger.LogInformation(
+						_context,
+						"Updated the entity",
+						ports.Field{Key: "entity", Value: "OutboxEvent"},
+						ports.Field{
+							Key:   "entity.updated_properties",
+							Value: updatedFields,
+						})
 
 					continue
 				}
 
-				fmt.Println(fmt.Sprintf("Published the %s event", eventType))
+				logger.LogInformation(_context, "Published the event")
 
 				entity.UpdateStatus("sent")
 				entity.UpdateSentAt(time.Now().UTC())
 
+				updatedFields := entity.GetUpdatedFields()
+
 				_error = service.databaseAdapter.UpdateOutboxEvent(entity)
 
 				if _error != nil {
-					fmt.Println(_error.Error())
+					logger.LogError(
+						_context,
+						"Error when trying to update entity",
+						ports.Field{Key: "entity", Value: "OutboxEvent"},
+						ports.Field{
+							Key:   "entity.updated_properties",
+							Value: updatedFields,
+						})
 				}
 
-				fmt.Println("Updated the OutboxEvent entity with success information when trying to publish an event")
+				logger.LogInformation(
+					_context,
+					"Updated the entity",
+					ports.Field{Key: "entity", Value: "OutboxEvent"},
+					ports.Field{
+						Key:   "entity.updated_properties",
+						Value: updatedFields,
+					})
 			}
 
 			time.Sleep(1 * time.Second)

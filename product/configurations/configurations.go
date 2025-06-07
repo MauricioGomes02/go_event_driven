@@ -8,6 +8,7 @@ import (
 )
 
 type Configuration struct {
+	Environment           string `envconfig:"ENVIRONMENT"`
 	ApiConfiguration      ApiConfiguration
 	DatabaseConfiguration DatabaseConfiguration
 	KafkaConfiguration    KafkaConfiguration

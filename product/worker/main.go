@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"go_event_driven/product/configurations"
+	"go_event_driven/product/domain/ports"
 	"go_event_driven/product/infrastructure/adapters"
 	"go_event_driven/product/worker/services"
 	"os"
@@ -11,15 +11,12 @@ import (
 )
 
 func main() {
-	configuration, _error := configurations.LoadConfigurations("product/worker/.env")
-
-	if _error != nil {
-		fmt.Println("Unable to load settings")
-		return
-	}
-
+	loggerZapAdapter := adapters.SetupLoggerZapAdapter()
 	background := context.Background()
 	_context, cancel := context.WithCancel(background)
+	_context = loggerZapAdapter.With(
+		_context,
+		ports.Field{Key: "worker.domain", Value: "product"})
 
 	defer cancel()
 
@@ -31,11 +28,22 @@ func main() {
 		cancel()
 	}()
 
+	configuration, _error := configurations.LoadConfigurations("product/worker/.env")
+
+	if _error != nil {
+		loggerZapAdapter.LogError(_context, "Error loading settings")
+		return
+	}
+
+	_context = loggerZapAdapter.With(
+		_context,
+		ports.Field{Key: "worker.environment", Value: configuration.Environment})
+
 	mysqlDatabaseAdapter := adapters.SetupMySqlAdapter(&configuration.DatabaseConfiguration)
 	productDatabaseAdapter := adapters.SetupProductMysqlAdapter(mysqlDatabaseAdapter)
 	mysqlCriterionBuilderAdapter := adapters.SetupCriterionBuilderMysqlAdapter()
 	kafkaEventBusAdapter := adapters.SetupKafkaAdapter(&configuration.KafkaConfiguration)
 	sendProductEventService := services.NewSendProductEventService(productDatabaseAdapter, mysqlCriterionBuilderAdapter, kafkaEventBusAdapter)
 
-	sendProductEventService.SendCreatedEvent(_context)
+	sendProductEventService.SendCreatedEvent(_context, loggerZapAdapter)
 }

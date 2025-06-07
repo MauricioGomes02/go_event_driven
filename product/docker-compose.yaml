@@ -58,6 +58,51 @@ services:
       - kafka
       - zookeeper
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9201:9200"  # Porta alterada para evitar conflito
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.0
+    container_name: kibana
+    ports:
+      - "5602:5601"  # Porta alterada para evitar conflito
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.13.0
+    container_name: filebeat
+    user: root
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+    depends_on:
+      - elasticsearch
+
+  app-product-worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    container_name: app_product_worker
+    ports:
+      - "8081:8080"
+    depends_on:
+      - mysql
+      - kafka
+    # environment:
+
 volumes:
   mysql_data:
     name: mysql_data
@@ -65,3 +110,5 @@ volumes:
     name: zookeeper_data
   kafka_data:
     name: kafka_data
+  esdata:
+    name: esdata
