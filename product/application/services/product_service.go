@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	inputModels "go_event_driven/product/application/input_models"
 	outputModels "go_event_driven/product/application/output_models"
@@ -13,30 +14,42 @@ import (
 )
 
 type IProductService interface {
-	Create(createProduct *inputModels.CreateProduct) (*outputModels.Product, error)
+	Create(_context context.Context, createProduct *inputModels.CreateProduct) (*outputModels.Product, error)
 }
 
 type ProductService struct {
 	databaseAdapter ports.IProductDatabasePort
+	logger          ports.Logger
 }
 
-func NewProductService(databaseAdapter ports.IProductDatabasePort) *ProductService {
+func NewProductService(databaseAdapter ports.IProductDatabasePort, logger ports.Logger) *ProductService {
 	return &ProductService{
 		databaseAdapter: databaseAdapter,
+		logger:          logger,
 	}
 }
 
-func (productService *ProductService) Create(createProduct *inputModels.CreateProduct) (*outputModels.Product, error) {
+func (service *ProductService) Create(_context context.Context, createProduct *inputModels.CreateProduct) (*outputModels.Product, error) {
 	utcNow := time.Now().UTC()
 	newId, _error := uuid.NewUUID()
 
 	if _error != nil {
+		service.logger.LogError(
+			_context,
+			"Error generating new id",
+			ports.Field{Key: "error.reason", Value: _error.Error()},
+		)
 		return nil, _error
 	}
 
 	outboxEventId, _error := uuid.NewUUID()
 
 	if _error != nil {
+		service.logger.LogError(
+			_context,
+			"Error generating new id",
+			ports.Field{Key: "error.reason", Value: _error.Error()},
+		)
 		return nil, _error
 	}
 
@@ -50,15 +63,17 @@ func (productService *ProductService) Create(createProduct *inputModels.CreatePr
 	)
 
 	if _error != nil {
+		service.logger.LogError(
+			_context,
+			"Error generating new entity",
+			ports.Field{Key: "error.reason", Value: _error.Error()},
+			ports.Field{Key: "entity.name", Value: "Product"},
+		)
 		return nil, _error
 	}
 
 	productCreatedEvent := events.NewProductCreatedEvent(entity)
-	_bytes, _error := json.Marshal(productCreatedEvent)
-
-	if _error != nil {
-		return nil, _error
-	}
+	_bytes, _ := json.Marshal(productCreatedEvent)
 
 	outboxEvent := entities.NewOutboxEvent(
 		outboxEventId,
@@ -73,12 +88,28 @@ func (productService *ProductService) Create(createProduct *inputModels.CreatePr
 		nil,
 	)
 
-	_entity, _error := productService.databaseAdapter.AddWithOutboxEvent(entity, outboxEvent)
+	_context = service.logger.With(
+		_context,
+		ports.Field{Key: "event.entity", Value: "product"},
+		ports.Field{Key: "event.type", Value: "created"},
+	)
+
+	_entity, _error := service.databaseAdapter.AddWithOutboxEvent(entity, outboxEvent)
 
 	if _error != nil {
+		service.logger.LogError(
+			_context,
+			"Error persisting entity with event",
+			ports.Field{Key: "error.reason", Value: _error.Error()},
+		)
 		return nil, _error
 	}
 
+	service.logger.LogInformation(
+		_context,
+		"Persisted entity and event",
+	)
+
 	output := outputModels.ConvertFromDomainToApplication(_entity)
-	return output, _error
+	return output, nil
 }

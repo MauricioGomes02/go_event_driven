@@ -19,8 +19,8 @@ type ZapLogger struct {
 
 func NewZapLogger() *ZapLogger {
 	encoderCfg := zapcore.EncoderConfig{
-		TimeKey:       "timestamp",
-		LevelKey:      "level",
+		TimeKey:       "@timestamp",
+		LevelKey:      "log.level",
 		NameKey:       "logger",
 		CallerKey:     "caller",
 		MessageKey:    "message",
@@ -53,7 +53,12 @@ func (logger *ZapLogger) LogError(_context context.Context, message string, fiel
 }
 
 func (logger *ZapLogger) With(_context context.Context, fields ...ports.Field) context.Context {
-	return context.WithValue(_context, loggerFieldsContextKey, fields)
+	existingFields := []ports.Field{}
+	existingValue := _context.Value(loggerFieldsContextKey)
+	if existingValue != nil {
+		existingFields = existingValue.([]ports.Field)
+	}
+	return context.WithValue(_context, loggerFieldsContextKey, append(existingFields, fields...))
 }
 
 func convertToZapFields(fields []ports.Field) []zapLogger.Field {

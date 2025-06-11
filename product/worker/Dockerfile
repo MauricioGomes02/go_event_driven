@@ -5,21 +5,20 @@ WORKDIR /app
 
 # Copia os arquivos Go
 COPY go.mod go.sum ./
-RUN go mod download
+COPY product/ ./product/
 
-COPY product/worker/. .
+RUN go mod tidy
 
-# Compila o binário de forma estática e otimizada
-RUN CGO_ENABLED=0 GOOS=linux go build -o app main.go
+WORKDIR /app/product/worker
 
-# Etapa de runtime
-FROM gcr.io/distroless/static-debian12:nonroot
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o worker ./main.go
 
-WORKDIR /
+FROM alpine:latest
 
-COPY --from=builder /app/app .
+WORKDIR /app
 
-# Executa como usuário não-root (UID 65532)
-USER nonroot:nonroot
+COPY --from=builder /app/product/worker/worker .
+COPY product/worker/wait-for.sh .
+RUN chmod +x wait-for.sh && apk add --no-cache netcat-openbsd
 
-ENTRYPOINT ["/app"]
+ENTRYPOINT ["/app/wait-for.sh", "/app/worker"]

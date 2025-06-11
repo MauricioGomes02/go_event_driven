@@ -14,7 +14,7 @@ type MySqlDatabaseAdapter struct {
 
 const driver = "mysql"
 
-func NewMySqlDatabaseAdapter(databaseConfiguration *configurations.DatabaseConfiguration) *MySqlDatabaseAdapter {
+func NewMySqlDatabaseAdapter(databaseConfiguration *configurations.DatabaseConfiguration) (*MySqlDatabaseAdapter, error) {
 	connectionString := fmt.Sprintf(
 		"%s:%s@tcp(%s:%d)/%s?parseTime=true",
 		databaseConfiguration.UserName,
@@ -27,10 +27,10 @@ func NewMySqlDatabaseAdapter(databaseConfiguration *configurations.DatabaseConfi
 	_database, _error := sql.Open(driver, connectionString)
 
 	if _error != nil {
-		// TODO
+		return nil, _error
 	}
 
 	return &MySqlDatabaseAdapter{
 		Database: _database,
-	}
+	}, nil
 }

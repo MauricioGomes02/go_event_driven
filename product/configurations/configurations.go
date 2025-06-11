@@ -2,6 +2,7 @@ package configurations
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
@@ -36,7 +37,9 @@ type KafkaTopicConfiguration struct {
 }
 
 func LoadConfigurations(envFilePath string) (*Configuration, error) {
-	_ = godotenv.Load(envFilePath)
+	if os.Getenv("ENVIRONMENT") == "" {
+		_ = godotenv.Load(envFilePath)
+	}
 
 	var configuration Configuration
 	_error := envconfig.Process("", &configuration)

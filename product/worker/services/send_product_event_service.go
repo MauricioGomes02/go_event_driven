@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"go_event_driven/product/domain/ports"
 	"time"
 )
@@ -10,17 +11,20 @@ type SendProductEventService struct {
 	databaseAdapter         ports.IProductDatabasePort
 	criterionBuilderAdapter ports.CriterionBuilderPort
 	eventBusAdapter         ports.IProductEventBusPort
+	logger                  ports.Logger
 }
 
 func NewSendProductEventService(
 	databaseAdapter ports.IProductDatabasePort,
 	criterionBuilderAdapter ports.CriterionBuilderPort,
 	eventBusAdapter ports.IProductEventBusPort,
+	logger ports.Logger,
 ) *SendProductEventService {
 	return &SendProductEventService{
 		databaseAdapter:         databaseAdapter,
 		criterionBuilderAdapter: criterionBuilderAdapter,
 		eventBusAdapter:         eventBusAdapter,
+		logger:                  logger,
 	}
 }
 
@@ -28,10 +32,10 @@ func (service *SendProductEventService) SendCreatedEvent(_context context.Contex
 	eventType := "product.created"
 	_context = logger.With(
 		_context,
-		ports.Field{Key: "worker.service", Value: "SendProductEventService"},
-		ports.Field{Key: "event_type", Value: eventType})
+		ports.Field{Key: "event.entity", Value: "product"},
+		ports.Field{Key: "event.type", Value: "created"},
+	)
 
-	logger.LogInformation(_context, "Starting service")
 	for {
 		select {
 		case <-_context.Done():
@@ -43,7 +47,7 @@ func (service *SendProductEventService) SendCreatedEvent(_context context.Contex
 				if _panic != nil {
 					logger.LogError(
 						_context,
-						"An error occurred while trying to send the event",
+						"Error sending event",
 						ports.Field{Key: "panic.reason", Value: _panic.(string)})
 				}
 			}()
@@ -67,12 +71,12 @@ func (service *SendProductEventService) SendCreatedEvent(_context context.Contex
 				ports.Field{Key: "entity.quantity", Value: len(_entities)})
 
 			for _, entity := range _entities {
-				_error := service.eventBusAdapter.Publish(eventType, entity.Payload)
+				_error := service.eventBusAdapter.Publish(_context, eventType, entity.Payload)
 
 				if _error != nil {
 					logger.LogError(
 						_context,
-						"Error trying to publish event",
+						"Error publishing event",
 						ports.Field{Key: "error.reason", Value: _error.Error()})
 
 					entity.UpdateStatus("error")
@@ -86,10 +90,10 @@ func (service *SendProductEventService) SendCreatedEvent(_context context.Contex
 					if _error != nil {
 						logger.LogError(
 							_context,
-							"Error when trying to update entity",
+							"Error updating entity",
 							ports.Field{Key: "entity", Value: "OutboxEvent"},
 							ports.Field{
-								Key:   "entity.updated_properties",
+								Key:   "entity.properties.updated",
 								Value: updatedFields,
 							})
 					}
@@ -99,7 +103,7 @@ func (service *SendProductEventService) SendCreatedEvent(_context context.Contex
 						"Updated the entity",
 						ports.Field{Key: "entity", Value: "OutboxEvent"},
 						ports.Field{
-							Key:   "entity.updated_properties",
+							Key:   "entity.properties.updated",
 							Value: updatedFields,
 						})
 
@@ -111,18 +115,19 @@ func (service *SendProductEventService) SendCreatedEvent(_context context.Contex
 				entity.UpdateStatus("sent")
 				entity.UpdateSentAt(time.Now().UTC())
 
-				updatedFields := entity.GetUpdatedFields()
+				updatedProperties := entity.GetUpdatedFields()
+				serializedUpdatedProperties, _ := json.Marshal(updatedProperties)
 
 				_error = service.databaseAdapter.UpdateOutboxEvent(entity)
 
 				if _error != nil {
 					logger.LogError(
 						_context,
-						"Error when trying to update entity",
+						"Error updating entity",
 						ports.Field{Key: "entity", Value: "OutboxEvent"},
 						ports.Field{
-							Key:   "entity.updated_properties",
-							Value: updatedFields,
+							Key:   "entity.properties.updated",
+							Value: serializedUpdatedProperties,
 						})
 				}
 
@@ -131,8 +136,8 @@ func (service *SendProductEventService) SendCreatedEvent(_context context.Contex
 					"Updated the entity",
 					ports.Field{Key: "entity", Value: "OutboxEvent"},
 					ports.Field{
-						Key:   "entity.updated_properties",
-						Value: updatedFields,
+						Key:   "entity.properties.updated",
+						Value: serializedUpdatedProperties,
 					})
 			}
 

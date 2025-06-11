@@ -11,6 +11,9 @@ services:
     volumes:
       - ./init:/docker-entrypoint-initdb.d
       - mysql_data:/var/lib/mysql
+    labels:
+      co.elastic.logs/enabled: "true"
+      app.name: "mysql"
   
   zookeeper:
     image: confluentinc/cp-zookeeper
@@ -19,6 +22,9 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
     volumes:
       - zookeeper_data:/var/lib/zookeeper
+    labels:
+      co.elastic.logs/enabled: "true"
+      app.name: "zookeeper"
 
   kafka:
     image: confluentinc/cp-kafka
@@ -46,6 +52,9 @@ services:
         kafka-topics --create --if-not-exists --topic product.created --bootstrap-server kafka:9092 --replication-factor 1 --partitions 1;
         wait
       "
+    labels:
+      co.elastic.logs/enabled: "true"
+      app.name: "kafka"
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     ports:
@@ -69,6 +78,14 @@ services:
       - "9201:9200"  # Porta alterada para evitar conflito
     volumes:
       - esdata:/usr/share/elasticsearch/data
+    labels:
+      co.elastic.logs/enabled: "true"
+      app.name: "elasticsearch"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kibana:
     image: docker.elastic.co/kibana/kibana:8.13.0
@@ -79,30 +96,75 @@ services:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     depends_on:
       - elasticsearch
+    labels:
+      co.elastic.logs/enabled: "true"
+      app.name: "kibana"
 
   filebeat:
-    image: docker.elastic.co/beats/filebeat:8.13.0
+    build:
+      context: ./filebeat
     container_name: filebeat
     user: root
     volumes:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - filebeat_data:/usr/share/filebeat/data
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Waiting for Elasticsearch to be ready...';
+        while ! curl -s http://elasticsearch:9200 >/dev/null; do
+          sleep 1;
+        done;
+        echo 'Elasticsearch is ready!';
+        filebeat -e
+      "
+    privileged: true
 
   app-product-worker:
     build:
-      context: ./worker
-      dockerfile: Dockerfile
-    container_name: app_product_worker
+      context: ..
+      dockerfile: product/worker/Dockerfile
+    container_name: app-product-worker
     ports:
       - "8081:8080"
+    labels:
+      co.elastic.logs/enabled: "true"
     depends_on:
       - mysql
       - kafka
-    # environment:
+    environment:
+      ENVIRONMENT: dev
+      DATABASE_HOST: mysql
+      DATABASE_PORT: 3306
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: root
+      DATABASE_NAME: products
+      KAFKA_BROKER: kafka:9092
+      KAFKA_TOPIC_PRODUCT_CREATED: product.created
 
+  app-product-api:
+      build:
+        context: ..
+        dockerfile: product/api/Dockerfile
+      container_name: app-product-api
+      ports:
+        - "8082:8080"
+      labels:
+        co.elastic.logs/enabled: "true"
+      depends_on:
+        - mysql
+      environment:
+        ENVIRONMENT: dev
+        API_PORT: 8080
+        DATABASE_HOST: mysql
+        DATABASE_PORT: 3306
+        DATABASE_USERNAME: root
+        DATABASE_PASSWORD: root
+        DATABASE_NAME: products
+     
 volumes:
   mysql_data:
     name: mysql_data
@@ -112,3 +174,5 @@ volumes:
     name: kafka_data
   esdata:
     name: esdata
+  filebeat_data:
+    name: filebeat_data

@@ -1,5 +1,7 @@
 package ports
 
+import "context"
+
 type IProductEventBusPort interface {
-	Publish(eventType string, message []byte) error
+	Publish(_context context.Context, eventType string, message []byte) error
 }

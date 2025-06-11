@@ -13,16 +13,17 @@ import (
 
 type MySqlProductDatabaseAdapter struct {
 	databaseAdapter *MySqlDatabaseAdapter
+	logger          ports.Logger
 }
 
 var (
 	once sync.Once
 )
 
-func NewMySqlProductDatabaseAdapter(databaseAdapter *MySqlDatabaseAdapter) *MySqlProductDatabaseAdapter {
-
+func NewMySqlProductDatabaseAdapter(databaseAdapter *MySqlDatabaseAdapter, logger ports.Logger) *MySqlProductDatabaseAdapter {
 	return &MySqlProductDatabaseAdapter{
 		databaseAdapter: databaseAdapter,
+		logger:          logger,
 	}
 }
 
